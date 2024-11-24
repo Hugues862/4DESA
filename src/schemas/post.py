@@ -1,6 +1,7 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+from .media import MediaResponse
 
 class PostBase(BaseModel):
     title: str
@@ -20,6 +21,7 @@ class PostResponse(PostBase):
     user_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
+    media: List[MediaResponse] = []
 
     class Config:
         from_attributes = True 

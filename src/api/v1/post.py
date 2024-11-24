@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy import or_
+from typing import List, Optional
 from src.core.database import get_db
 from src.models.post import Post
+from src.models.media import Media
 from src.schemas.post import PostCreate, PostResponse, PostUpdate
 from src.services.auth_service import get_current_user
 
@@ -27,14 +29,33 @@ async def create_post(
 
 @router.get("/", response_model=List[PostResponse])
 async def get_posts(
+    search: Optional[str] = None,
     skip: int = 0,
     limit: int = 10,
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    posts = db.query(Post).filter(
-        (Post.is_public == True) | (Post.user_id == current_user.id)
-    ).offset(skip).limit(limit).all()
+    query = db.query(Post)
+    
+    # Apply search filter if search parameter is provided
+    if search:
+        query = query.filter(
+            or_(
+                Post.title.ilike(f"%{search}%"),
+                Post.content.ilike(f"%{search}%")
+            )
+        )
+    
+    # Apply visibility filter
+    query = query.filter(
+        or_(
+            Post.is_public == True,
+            Post.user_id == current_user.id
+        )
+    )
+    
+    # Apply pagination
+    posts = query.order_by(Post.created_at.desc()).offset(skip).limit(limit).all()
     return posts
 
 @router.get("/{post_id}", response_model=PostResponse)
@@ -85,3 +106,52 @@ async def delete_post(
     db.delete(db_post)
     db.commit()
     return None
+
+@router.post("/{post_id}/media/{media_id}")
+async def assign_media_to_post(
+    post_id: int,
+    media_id: int,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Check if post exists and user owns it
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    if post.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to modify this post")
+
+    # Check if media exists and user owns it
+    media = db.query(Media).filter(Media.id == media_id).first()
+    if not media:
+        raise HTTPException(status_code=404, detail="Media not found")
+    if media.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to use this media")
+
+    # Assign media to post
+    media.post_id = post_id
+    db.commit()
+    db.refresh(media)
+
+    return {"message": "Media assigned to post successfully"}
+
+
+@router.get("/user/{user_id}", response_model=List[PostResponse])
+async def get_user_posts(
+    user_id: int,
+    skip: int = 0,
+    limit: int = 10,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Get posts for a specific user, respecting visibility
+    posts = db.query(Post).filter(
+        Post.user_id == user_id
+    ).filter(
+        or_(
+            Post.is_public == True,
+            Post.user_id == current_user.id
+        )
+    ).offset(skip).limit(limit).all()
+
+    return posts
