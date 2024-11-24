@@ -14,7 +14,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="A flexible social media platform for content creators",
-    version=settings.VERSION
+    version=settings.VERSION,
 )
 
 # Configure CORS
@@ -29,13 +29,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files for media storage
-app.mount("/media", StaticFiles(directory=settings.MEDIA_ROOT), name="media")
 
 # Include routers
-app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
+app.include_router(
+    auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"]
+)
 app.include_router(post.router, prefix=f"{settings.API_V1_STR}/posts", tags=["Posts"])
 app.include_router(media.router, prefix=f"{settings.API_V1_STR}/media", tags=["Media"])
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

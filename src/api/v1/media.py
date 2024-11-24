@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
 from sqlalchemy.orm import Session
-import aiofiles
-import os
 from src.core.database import get_db
 from src.core.config import get_settings
 from src.services.auth_service import get_current_user
+from src.services.azure_storage import AzureStorageService
 from src.models.media import Media
 
 router = APIRouter()
@@ -20,14 +19,20 @@ async def upload_media(
     if file.content_type not in settings.ALLOWED_MEDIA_TYPES:
         raise HTTPException(status_code=400, detail="File type not allowed")
 
-    file_path = f"{settings.MEDIA_ROOT}/{file.filename}"
-    
-    async with aiofiles.open(file_path, 'wb') as out_file:
-        content = await file.read()
-        await out_file.write(content)
+    # Check file size
+    file_size = 0
+    content = await file.read()
+    file_size = len(content)
+    if file_size > settings.MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File size too large")
 
+    # Upload to Azure Blob Storage
+    storage_service = AzureStorageService()
+    file_url = await storage_service.upload_file(content, file.content_type)
+
+    # Save media information to database
     db_media = Media(
-        file_path=file_path,
+        file_path=file_url,  # Store the Azure Blob URL instead of local path
         media_type=file.content_type,
         post_id=post_id,
         user_id=current_user.id
@@ -36,4 +41,8 @@ async def upload_media(
     db.commit()
     db.refresh(db_media)
     
-    return {"filename": file.filename, "media_id": db_media.id} 
+    return {
+        "media_id": db_media.id,
+        "url": file_url,
+        "media_type": file.content_type
+    } 

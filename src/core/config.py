@@ -3,9 +3,9 @@ from functools import lru_cache
 from typing import List
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str
-    VERSION: str
-    API_V1_STR: str
+    PROJECT_NAME: str = "4DESA Project"
+    VERSION: str = "1.0.0"
+    API_V1_STR: str = "/api/v1"
     
     # Security
     SECRET_KEY: str = "your-secret-key"  # In production, use environment variable
@@ -15,10 +15,13 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
     
-    # Media
-    MEDIA_ROOT: str
-    MAX_FILE_SIZE: int
-    ALLOWED_MEDIA_TYPES: List[str]
+    # Azure Storage
+    STORAGE_CONN_STRING: str
+    STORAGE_CONTAINER: str
+    
+    # Media Settings
+    ALLOWED_MEDIA_TYPES: List[str] = ["image/jpeg", "image/png", "image/gif", "video/mp4"]
+    MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
 
     class Config:
         env_file = ".env"
